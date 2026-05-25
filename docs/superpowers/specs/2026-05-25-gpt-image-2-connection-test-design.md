@@ -84,13 +84,21 @@ Auth: CurrentUser
 {
   "success": true,
   "message": "生图测试成功",
-  "latency_ms": 12340,
+  "latency_ms": 62340,
   "status_code": 200,
   "image_data_url": "data:image/png;base64,iVBORw0KGgo...",
   "revised_prompt": "A cute orange cat astronaut...",
-  "model": "gpt-image-2"
+  "model": "gpt-image-2",
+  "upstream_metadata": {
+    "model": "gpt-image-2",
+    "size": "auto",
+    "quality": "auto",
+    "output_format": "png"
+  }
 }
 ```
+
+> `upstream_metadata` 是 sub2api 中转返回的顶层字段直传，便于排查"上游实际跑了什么模型/参数"。其他 OpenAI 兼容上游不保证返回，前端按可空处理。
 
 失败时：
 
@@ -126,9 +134,14 @@ class ImageProbeResult:
     status_code: int | None
     latency_ms: int
     image_b64: str | None
-    mime_type: str           # 默认 "image/png"
+    mime_type: str           # 默认 "image/png"; 若上游返回 output_format 则按其推导
     revised_prompt: str | None
     error: str | None         # 截断 200 字符
+    # 实测 sub2api 中转返回的顶层 metadata（仅展示用, 可空兼容其它 OpenAI 兼容上游）
+    upstream_model: str | None       # response.model
+    upstream_size: str | None        # response.size, e.g. "1024x1024" / "auto"
+    upstream_quality: str | None     # response.quality
+    upstream_output_format: str | None  # response.output_format, e.g. "png"
 
 async def probe_image_generation(
     *,
@@ -136,7 +149,7 @@ async def probe_image_generation(
     api_key: str,
     model: str,
     prompt: str,
-    timeout_s: float = 60.0,
+    timeout_s: float = 120.0,  # 实测 sub2api 中转 gpt-image-2 单次约 60s，留 2x buffer
 ) -> ImageProbeResult:
     """POST {base_url}/v1/images/generations，payload n=1, response_format=b64_json。
 
@@ -156,7 +169,7 @@ async def probe_image_generation(
 - 日志严格只打 `model + status_code + latency_ms`（与 `anthropic_probe.py` 同 pattern）
 - 不打 base64、不打 api_key、不打 prompt
 - 错误体截断 200 字符
-- timeout: 60s（生图比 list-models 慢一个数量级）
+- timeout: 120s（实测 sub2api 中转 gpt-image-2 单次 60-90s，60s 太紧；留 2x buffer）
 - base64 图片**不落盘**，仅一次性响应给前端，HTTP 响应结束后内存即释放
 
 ### i18n keys
@@ -170,7 +183,7 @@ async def probe_image_generation(
 | `image_test_failed` | 生图测试失败：{err_msg} | Image generation failed: {err_msg} | Tạo ảnh thất bại: {err_msg} |
 | `image_test_no_image_returned` | 上游返回 200 但 data 为空（可能触发内容安全过滤或上游异常） | Upstream returned 200 with empty data (likely content filter or upstream issue) | Upstream trả 200 nhưng data rỗng (có thể bị lọc nội dung hoặc lỗi upstream) |
 | `image_test_model_not_t2i_endpoint` | model_id={model_id} 不是支持文生图的端点 | model_id={model_id} does not support text-to-image | model_id={model_id} không hỗ trợ text-to-image |
-| `image_test_timeout` | 生图测试超时（60s） | Image generation test timed out (60s) | Hết thời gian kiểm tra tạo ảnh (60s) |
+| `image_test_timeout` | 生图测试超时（120s） | Image generation test timed out (120s) | Hết thời gian kiểm tra tạo ảnh (120s) |
 
 默认 prompt（短、可预期、高识别度，便于一眼判定是否真生成对了）：
 
@@ -325,10 +338,26 @@ mock `httpx` 验证：
 
 1. **生图真实计费** —— 每次点击就是真金白银（gpt-image-2 ~$0.04/张），弹窗内会显式提示。
 2. **base64 内联响应体大** —— 1024×1024 png base64 约 1-3MB；HTTP 一次性吞下没问题，但日志和监控要避开 body。
-3. **timeout 60s 是经验值** —— 慢的中转可能更慢；首版不引入配置项（YAGNI），实战发现不够再说。
+3. **timeout 120s** —— 实测 sub2api 中转 gpt-image-2 单次 60-90s（首发设计写的 60s 实测踩线了），改 120s 留 2x buffer；首版不引入配置项（YAGNI），如再不够再说。
 4. **OAuth `/v1/responses` 路径暂不做** —— 与用户确认；若将来要做，新加 `image_probe_responses.py` 即可，本设计未堵死扩展位。
 5. **revised_prompt 可空** —— sub2api 中转有的会返，OpenAI 原生 gpt-image 不一定返；前端按"可空"处理。
 6. **预置 OpenAI 供应商暂不做** —— 自定义供应商先做，预置供应商若日后需要，复用 `image_probe` 即可。
+
+## 实测验证（2026-05-25）
+
+设计完稿后用 sub2api 中转账号（`tght1211` / OAuth 类型, 已通过 sub2api 转成 API Key 形态）跑了一次真实联调，确认 spec 与上游契约一致：
+
+- `GET /v1/models` → 200, 1.0s，返回 17 个模型，其中 `gpt-image-1` / `gpt-image-1.5` / `gpt-image-2` 都在列
+- `POST /v1/images/generations` with `{model:"gpt-image-2", prompt, n:1, response_format:"b64_json"}` →
+  - HTTP 200, **61.8s**（这促使把 timeout 从 60s 升到 120s）
+  - 响应体 2.4MB（base64 PNG 1.7MB）
+  - 顶层 keys：`data, usage, model, background, output_format, quality, size, created`
+  - `data[0]` keys：`b64_json, revised_prompt`
+  - PNG magic `89504e470d0a1a0a` ✓
+  - `revised_prompt`：上游确实会对短 prompt 进行扩写（"A cute orange cat astronaut sticker..." → 301 字符的细节版）
+  - `usage`：`{input_tokens:64, output_tokens:1372(全是 image_tokens), total_tokens:1436}`
+
+结论：sub2api `testOpenAIImageAPIKey` 描述的 API 形态在中转上游真实可跑，spec 不需要返工。
 
 ## 扩展位（不在本次范围内）
 
