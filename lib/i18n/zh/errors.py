@@ -161,6 +161,13 @@ MESSAGES = {
         "模型 {model_id} 支持参考音频时 max_reference_audio_count 必须大于 0；"
         "如需关闭音色参考，请把 reference_audio_mode 覆盖为 none"
     ),
+    "model_not_found": "模型不存在",
+    "image_test_default_prompt": "A cute orange cat astronaut sticker on a clean pastel background.",
+    "image_test_success": "生图测试成功",
+    "image_test_failed": "生图测试失败：{err_msg}",
+    "image_test_no_image_returned": "上游返回 200 但未生成图片（可能触发内容安全过滤或上游异常）",
+    "image_test_model_not_t2i_endpoint": "model_id={model_id} 不是支持文生图的端点",
+    "image_test_timeout": "生图测试超时（120s）",
     # Projects
     "unknown_style_template": "未知的风格模版: {template_id}",
     "ad_only_field": "{field} 仅广告/短片项目（content_mode=ad）可用",
