@@ -130,3 +130,154 @@ class TestProbeImageGenerationHappyPath:
             "response_format": "b64_json",
         }
         assert kwargs["timeout_s"] == 120.0
+
+
+class TestProbeImageGenerationErrors:
+    @pytest.mark.asyncio
+    async def test_401_returns_truncated_error(self):
+        from lib.custom_provider import image_probe
+
+        mock_post = AsyncMock(
+            return_value=_make_resp(
+                status_code=401,
+                text='{"error":{"message":"invalid_api_key"}}',
+            )
+        )
+        with patch.object(image_probe, "_post", mock_post):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="bad", model="gpt-image-2", prompt="p"
+            )
+        assert r.success is False
+        assert r.status_code == 401
+        assert "invalid_api_key" in (r.error or "")
+        assert r.image_b64 is None
+
+    @pytest.mark.asyncio
+    async def test_429_rate_limited(self):
+        from lib.custom_provider import image_probe
+
+        mock_post = AsyncMock(return_value=_make_resp(status_code=429, text="rate limited"))
+        with patch.object(image_probe, "_post", mock_post):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="k", model="gpt-image-2", prompt="p"
+            )
+        assert r.success is False
+        assert r.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_5xx_returns_status(self):
+        from lib.custom_provider import image_probe
+
+        mock_post = AsyncMock(return_value=_make_resp(status_code=502, text="bad gateway"))
+        with patch.object(image_probe, "_post", mock_post):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="k", model="gpt-image-2", prompt="p"
+            )
+        assert r.success is False
+        assert r.status_code == 502
+
+    @pytest.mark.asyncio
+    async def test_200_with_empty_data_fails(self):
+        """sub2api 实测：内容安全过滤时上游可能返 200 + data:[]."""
+        from lib.custom_provider import image_probe
+
+        mock_post = AsyncMock(return_value=_make_resp(status_code=200, json_body={"data": []}))
+        with patch.object(image_probe, "_post", mock_post):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="k", model="gpt-image-2", prompt="p"
+            )
+        assert r.success is False
+        assert r.status_code == 200
+        assert "empty data" in (r.error or "")
+
+    @pytest.mark.asyncio
+    async def test_200_with_missing_data_field_fails(self):
+        from lib.custom_provider import image_probe
+
+        mock_post = AsyncMock(return_value=_make_resp(status_code=200, json_body={"foo": "bar"}))
+        with patch.object(image_probe, "_post", mock_post):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="k", model="gpt-image-2", prompt="p"
+            )
+        assert r.success is False
+
+    @pytest.mark.asyncio
+    async def test_200_with_non_json_body_fails(self):
+        from lib.custom_provider import image_probe
+
+        mock_post = AsyncMock(return_value=_make_resp(status_code=200, text="<html>oops</html>"))
+        with patch.object(image_probe, "_post", mock_post):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="k", model="gpt-image-2", prompt="p"
+            )
+        assert r.success is False
+        assert "non-JSON" in (r.error or "")
+
+    @pytest.mark.asyncio
+    async def test_timeout_returns_status_none(self):
+        from lib.custom_provider import image_probe
+
+        async def _raise_timeout(**_kw):
+            raise httpx.TimeoutException("read timeout")
+
+        with patch.object(image_probe, "_post", AsyncMock(side_effect=_raise_timeout)):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="k", model="gpt-image-2", prompt="p"
+            )
+        assert r.success is False
+        assert r.status_code is None
+        assert "timeout" in (r.error or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_network_error_returns_status_none(self):
+        from lib.custom_provider import image_probe
+
+        async def _raise_conn(**_kw):
+            raise httpx.ConnectError("conn refused")
+
+        with patch.object(image_probe, "_post", AsyncMock(side_effect=_raise_conn)):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="k", model="gpt-image-2", prompt="p"
+            )
+        assert r.success is False
+        assert r.status_code is None
+
+    @pytest.mark.asyncio
+    async def test_error_body_truncated_to_200_chars(self):
+        from lib.custom_provider import image_probe
+
+        long_body = "x" * 5000
+        mock_post = AsyncMock(return_value=_make_resp(status_code=500, text=long_body))
+        with patch.object(image_probe, "_post", mock_post):
+            r = await image_probe.probe_image_generation(
+                base_url="https://x", api_key="k", model="gpt-image-2", prompt="p"
+            )
+        assert r.error is not None
+        # 200 个 'x' + 1 个 '…' 字符（ellipsis 是单字符，不是三点）
+        assert len(r.error) <= 201
+        assert r.error.endswith("…")
+
+    @pytest.mark.asyncio
+    async def test_log_does_not_contain_api_key_or_base64(self, caplog):
+        """日志安全性: 不允许打 api_key 或 base64 内容."""
+        import logging as _logging
+
+        from lib.custom_provider import image_probe
+
+        mock_post = AsyncMock(
+            return_value=_make_resp(
+                status_code=200,
+                json_body={"data": [{"b64_json": "SECRETBASE64DATAXYZ"}]},
+            )
+        )
+        with caplog.at_level(_logging.INFO, logger="lib.custom_provider.image_probe"):
+            with patch.object(image_probe, "_post", mock_post):
+                await image_probe.probe_image_generation(
+                    base_url="https://x",
+                    api_key="sk-supersecret-key",
+                    model="gpt-image-2",
+                    prompt="hello",
+                )
+        full_log = " ".join(rec.getMessage() for rec in caplog.records)
+        assert "sk-supersecret-key" not in full_log
+        assert "SECRETBASE64DATAXYZ" not in full_log
