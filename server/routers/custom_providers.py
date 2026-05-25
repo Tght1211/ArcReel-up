@@ -24,6 +24,7 @@ from lib.custom_provider.endpoints import (
     endpoint_to_image_capabilities,
     endpoint_to_media_type,
 )
+from lib.custom_provider.image_probe import ImageProbeResult, probe_image_generation
 from lib.db import get_async_session
 from lib.db.base import dt_to_iso
 from lib.db.repositories.custom_provider_repo import CustomProviderRepository
@@ -165,6 +166,29 @@ class ConnectionTestResponse(BaseModel):
     success: bool
     message: str
     model_count: int = 0
+
+
+class ImageGenerationTestRequest(BaseModel):
+    model_id: str
+    prompt: str | None = None
+
+
+class UpstreamMetadata(BaseModel):
+    model: str | None = None
+    size: str | None = None
+    quality: str | None = None
+    output_format: str | None = None
+
+
+class ImageGenerationTestResponse(BaseModel):
+    success: bool
+    message: str
+    latency_ms: int
+    status_code: int | None
+    image_data_url: str | None
+    revised_prompt: str | None
+    model: str
+    upstream_metadata: UpstreamMetadata
 
 
 class DiscoverResponse(BaseModel):
@@ -726,3 +750,94 @@ def _test_google(base_url: str, api_key: str, _t: Callable[..., str]) -> Connect
         message=_t("connection_success"),
         model_count=count,
     )
+
+
+# ---------------------------------------------------------------------------
+# Image generation test (T2I) — POST /{provider_id}/test-image-generation
+# ---------------------------------------------------------------------------
+
+_MAX_PROMPT_CHARS = 1000
+
+
+def _build_image_data_url(b64: str | None, mime: str) -> str | None:
+    if not b64:
+        return None
+    return f"data:{mime};base64,{b64}"
+
+
+def _serialize_image_probe(
+    r: ImageProbeResult, *, model_id: str, _t: Callable[..., str]
+) -> ImageGenerationTestResponse:
+    if r.success:
+        message = _t("image_test_success")
+    elif r.status_code is None and r.error and "timeout" in r.error.lower():
+        message = _t("image_test_timeout")
+    elif r.status_code == 200 and "empty data" in (r.error or ""):
+        message = _t("image_test_no_image_returned")
+    else:
+        message = _t("image_test_failed", err_msg=r.error or f"HTTP {r.status_code}")
+    return ImageGenerationTestResponse(
+        success=r.success,
+        message=message,
+        latency_ms=r.latency_ms,
+        status_code=r.status_code,
+        image_data_url=_build_image_data_url(r.image_b64, r.mime_type),
+        revised_prompt=r.revised_prompt,
+        model=model_id,
+        upstream_metadata=UpstreamMetadata(
+            model=r.upstream_model,
+            size=r.upstream_size,
+            quality=r.upstream_quality,
+            output_format=r.upstream_output_format,
+        ),
+    )
+
+
+@router.post(
+    "/{provider_id}/test-image-generation",
+    response_model=ImageGenerationTestResponse,
+)
+async def test_provider_image_generation(
+    provider_id: int,
+    body: ImageGenerationTestRequest,
+    _user: CurrentUser,
+    _t: Translator,
+    session: AsyncSession = Depends(get_async_session),
+) -> ImageGenerationTestResponse:
+    """对自定义供应商发起一次 gpt-image-2 风格的生图测试。
+
+    会真实调用上游 /v1/images/generations 端点（产生费用）。
+    仅接受 endpoint 的 image_capabilities 含 TEXT_TO_IMAGE 的模型，
+    拒绝 openai-images-edits 这种 I2I-only 端点（本接口不带参考图）。
+    """
+    repo = CustomProviderRepository(session)
+    provider = await repo.get_provider(provider_id)
+    if provider is None:
+        raise HTTPException(status_code=404, detail=_t("provider_not_found"))
+
+    model = await repo.get_model_by_ids(provider_id, body.model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail=_t("model_not_found"))
+
+    spec = ENDPOINT_REGISTRY.get(model.endpoint)
+    if (
+        spec is None
+        or spec.media_type != "image"
+        or not spec.image_capabilities
+        or ImageCapability.TEXT_TO_IMAGE not in spec.image_capabilities
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=_t("image_test_model_not_t2i_endpoint", model_id=body.model_id),
+        )
+
+    prompt = (body.prompt or "").strip() or _t("image_test_default_prompt")
+    prompt = prompt[:_MAX_PROMPT_CHARS]
+
+    result = await probe_image_generation(
+        base_url=provider.base_url,
+        api_key=provider.api_key,
+        model=body.model_id,
+        prompt=prompt,
+    )
+    return _serialize_image_probe(result, model_id=body.model_id, _t=_t)
