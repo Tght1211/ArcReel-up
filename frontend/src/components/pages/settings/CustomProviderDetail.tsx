@@ -11,6 +11,11 @@ import { formatDurationsLabel } from "@/utils/duration_format";
 import { formatDate } from "@/utils/date-format";
 import { ACCENT_BTN_CLS, ACCENT_BUTTON_STYLE, CARD_STYLE, GHOST_BTN_CLS } from "@/components/ui/darkroom-tokens";
 import { CustomProviderForm } from "./CustomProviderForm";
+import { ImageGenerationTestModal } from "./ImageGenerationTestModal";
+
+// 与后端 spec.image_capabilities 含 TEXT_TO_IMAGE 的 endpoint 一致
+// (openai-images-edits 是 I2I-only, 不在白名单内)
+const T2I_ENDPOINTS = new Set(["openai-images", "openai-images-generations"]);
 
 const MEDIA_LABELS: Record<string, string> = {
   text: "media_type_text",
@@ -52,6 +57,7 @@ export function CustomProviderDetail({ providerId, onDeleted, onSaved }: CustomP
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [imageTestOpen, setImageTestOpen] = useState(false);
   const showError = useCallback((msg: string) => useAppStore.getState().pushToast(msg, "error"), []);
 
   const fetchProvider = useCallback(async () => {
@@ -325,6 +331,24 @@ export function CustomProviderDetail({ providerId, onDeleted, onSaved }: CustomP
             )}
           </button>
 
+          {(() => {
+            const t2iModels = provider.models.filter(
+              (m) => m.is_enabled && T2I_ENDPOINTS.has(m.endpoint),
+            );
+            const hasT2I = t2iModels.length > 0;
+            return (
+              <button
+                type="button"
+                onClick={() => setImageTestOpen(true)}
+                disabled={testing || !hasT2I}
+                title={!hasT2I ? t("image_test_no_t2i_models") : undefined}
+                className={GHOST_BTN_CLS}
+              >
+                {t("image_test_button")}
+              </button>
+            );
+          })()}
+
           {!confirmDelete ? (
             <button
               type="button"
@@ -365,6 +389,20 @@ export function CustomProviderDetail({ providerId, onDeleted, onSaved }: CustomP
           )}
         </div>
       </div>
+
+      {imageTestOpen && (
+        <ImageGenerationTestModal
+          providerId={provider.id}
+          models={provider.models
+            .filter((m) => m.is_enabled && T2I_ENDPOINTS.has(m.endpoint))
+            .map((m) => ({
+              model_id: m.model_id,
+              display_name: m.display_name,
+              endpoint: m.endpoint,
+            }))}
+          onClose={() => setImageTestOpen(false)}
+        />
+      )}
     </div>
   );
 }
