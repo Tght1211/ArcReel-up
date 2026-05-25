@@ -1785,3 +1785,78 @@ class TestSupportedDurationsAutoFill:
         resp = client.get(f"/api/v1/custom-providers/{provider_id}")
         model = resp.json()["models"][0]
         assert model["supported_durations"] is None
+
+
+# ---------------------------------------------------------------------------
+# Image generation test endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestImageGenerationEndpoint:
+    """POST /api/v1/custom-providers/{id}/test-image-generation 端到端测试。
+
+    所有测试都 patch server.routers.custom_providers.probe_image_generation
+    避免真发 HTTP；probe 自身的单测见 tests/test_custom_provider_image_probe.py。
+    """
+
+    def _create_provider_with_t2i_model(self, client: TestClient) -> int:
+        """创建带一个 gpt-image-2 (T2I) 模型的自定义供应商。返回 provider id。"""
+        resp = client.post(
+            "/api/v1/custom-providers",
+            json={
+                "display_name": "Test OpenAI Proxy",
+                "discovery_format": "openai",
+                "base_url": "https://upstream.test",
+                "api_key": "sk-test-fixture",
+                "models": [
+                    {
+                        "model_id": "gpt-image-2",
+                        "display_name": "GPT Image 2",
+                        "endpoint": "openai-images-generations",
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        return resp.json()["id"]
+
+    def _ok_probe_result(self, **overrides):
+        from lib.custom_provider import image_probe
+
+        defaults = {
+            "success": True,
+            "status_code": 200,
+            "latency_ms": 12345,
+            "image_b64": "iVBORw0K",
+            "mime_type": "image/png",
+            "revised_prompt": "A cute cat",
+            "error": None,
+            "upstream_model": "gpt-image-2",
+            "upstream_size": "auto",
+            "upstream_quality": "auto",
+            "upstream_output_format": "png",
+        }
+        defaults.update(overrides)
+        return image_probe.ImageProbeResult(**defaults)
+
+    def test_happy_path_returns_image_data_url(self, client: TestClient):
+        pid = self._create_provider_with_t2i_model(client)
+        with patch(
+            "server.routers.custom_providers.probe_image_generation",
+            new_callable=AsyncMock,
+            return_value=self._ok_probe_result(),
+        ):
+            resp = client.post(
+                f"/api/v1/custom-providers/{pid}/test-image-generation",
+                json={"model_id": "gpt-image-2"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is True
+        assert body["status_code"] == 200
+        assert body["latency_ms"] == 12345
+        assert body["image_data_url"] == "data:image/png;base64,iVBORw0K"
+        assert body["revised_prompt"] == "A cute cat"
+        assert body["model"] == "gpt-image-2"
+        assert body["upstream_metadata"]["model"] == "gpt-image-2"
+        assert body["upstream_metadata"]["output_format"] == "png"
