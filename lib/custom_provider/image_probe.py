@@ -104,7 +104,40 @@ async def probe_image_generation(
         "Content-Type": "application/json",
     }
     started = time.perf_counter()
-    resp = await _post(url=url, headers=headers, payload=payload, timeout_s=timeout_s)
+    try:
+        resp = await _post(url=url, headers=headers, payload=payload, timeout_s=timeout_s)
+    except httpx.TimeoutException as exc:
+        elapsed = int((time.perf_counter() - started) * 1000)
+        logger.info("probe_image_generation model=%s timeout elapsed_ms=%d", model, elapsed)
+        return ImageProbeResult(
+            success=False,
+            status_code=None,
+            latency_ms=elapsed,
+            image_b64=None,
+            mime_type="image/png",
+            revised_prompt=None,
+            error=_truncate(f"timeout: {exc!s}"),
+            upstream_model=None,
+            upstream_size=None,
+            upstream_quality=None,
+            upstream_output_format=None,
+        )
+    except httpx.HTTPError as exc:
+        elapsed = int((time.perf_counter() - started) * 1000)
+        logger.info("probe_image_generation model=%s network_err elapsed_ms=%d", model, elapsed)
+        return ImageProbeResult(
+            success=False,
+            status_code=None,
+            latency_ms=elapsed,
+            image_b64=None,
+            mime_type="image/png",
+            revised_prompt=None,
+            error=_truncate(str(exc)),
+            upstream_model=None,
+            upstream_size=None,
+            upstream_quality=None,
+            upstream_output_format=None,
+        )
     elapsed = int((time.perf_counter() - started) * 1000)
 
     logger.info(
