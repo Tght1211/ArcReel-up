@@ -1860,3 +1860,134 @@ class TestImageGenerationEndpoint:
         assert body["model"] == "gpt-image-2"
         assert body["upstream_metadata"]["model"] == "gpt-image-2"
         assert body["upstream_metadata"]["output_format"] == "png"
+
+    def test_provider_not_found_returns_404(self, client: TestClient):
+        resp = client.post(
+            "/api/v1/custom-providers/99999/test-image-generation",
+            json={"model_id": "gpt-image-2"},
+        )
+        assert resp.status_code == 404
+
+    def test_model_not_found_returns_404(self, client: TestClient):
+        pid = self._create_provider_with_t2i_model(client)
+        resp = client.post(
+            f"/api/v1/custom-providers/{pid}/test-image-generation",
+            json={"model_id": "nonexistent-model"},
+        )
+        assert resp.status_code == 404
+
+    def test_non_t2i_endpoint_returns_422(self, client: TestClient):
+        """openai-images-edits 是 I2I-only，应被拒绝。"""
+        # 用 PUT /models 直接替换为 edits-only 模型
+        pid = self._create_provider_with_t2i_model(client)
+        resp = client.put(
+            f"/api/v1/custom-providers/{pid}/models",
+            json={
+                "models": [
+                    {
+                        "model_id": "gpt-image-2-edits",
+                        "display_name": "GPT Image 2 Edits",
+                        "endpoint": "openai-images-edits",
+                    }
+                ]
+            },
+        )
+        assert resp.status_code == 200
+
+        resp = client.post(
+            f"/api/v1/custom-providers/{pid}/test-image-generation",
+            json={"model_id": "gpt-image-2-edits"},
+        )
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert "text-to-image" in detail.lower() or "文生图" in detail
+
+    def test_default_prompt_used_when_not_provided(self, client: TestClient):
+        from lib.custom_provider import image_probe
+
+        pid = self._create_provider_with_t2i_model(client)
+        captured: dict = {}
+
+        async def _capture_probe(**kw):
+            captured.update(kw)
+            return image_probe.ImageProbeResult(
+                success=True,
+                status_code=200,
+                latency_ms=1,
+                image_b64="x",
+                mime_type="image/png",
+                revised_prompt=None,
+                error=None,
+                upstream_model=None,
+                upstream_size=None,
+                upstream_quality=None,
+                upstream_output_format=None,
+            )
+
+        with patch("server.routers.custom_providers.probe_image_generation", _capture_probe):
+            resp = client.post(
+                f"/api/v1/custom-providers/{pid}/test-image-generation",
+                json={"model_id": "gpt-image-2"},  # 不传 prompt
+            )
+        assert resp.status_code == 200
+        assert captured["prompt"]
+        assert "cat astronaut" in captured["prompt"].lower()
+
+    def test_long_prompt_truncated_to_1000(self, client: TestClient):
+        from lib.custom_provider import image_probe
+
+        pid = self._create_provider_with_t2i_model(client)
+        captured: dict = {}
+
+        async def _capture_probe(**kw):
+            captured.update(kw)
+            return image_probe.ImageProbeResult(
+                success=True,
+                status_code=200,
+                latency_ms=1,
+                image_b64="x",
+                mime_type="image/png",
+                revised_prompt=None,
+                error=None,
+                upstream_model=None,
+                upstream_size=None,
+                upstream_quality=None,
+                upstream_output_format=None,
+            )
+
+        with patch("server.routers.custom_providers.probe_image_generation", _capture_probe):
+            client.post(
+                f"/api/v1/custom-providers/{pid}/test-image-generation",
+                json={"model_id": "gpt-image-2", "prompt": "x" * 5000},
+            )
+        assert len(captured["prompt"]) == 1000
+
+    def test_upstream_failure_returns_200_with_success_false(self, client: TestClient):
+        """上游 401 等业务失败：HTTP 仍 200, body.success=False."""
+        pid = self._create_provider_with_t2i_model(client)
+        with patch(
+            "server.routers.custom_providers.probe_image_generation",
+            new_callable=AsyncMock,
+            return_value=self._ok_probe_result(
+                success=False,
+                status_code=401,
+                latency_ms=120,
+                image_b64=None,
+                revised_prompt=None,
+                error="invalid_api_key",
+                upstream_model=None,
+                upstream_size=None,
+                upstream_quality=None,
+                upstream_output_format=None,
+            ),
+        ):
+            resp = client.post(
+                f"/api/v1/custom-providers/{pid}/test-image-generation",
+                json={"model_id": "gpt-image-2"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["success"] is False
+        assert body["status_code"] == 401
+        assert body["image_data_url"] is None
+        assert "invalid_api_key" in body["message"]
