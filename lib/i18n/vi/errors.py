@@ -90,6 +90,13 @@ MESSAGES = {
     "endpoint_media_type_mismatch": "media_type của endpoint không khớp: {detail}",
     "backend_creation_failed": "Tạo backend thất bại: {err_msg}",
     "unsupported_discovery_format": "Kiểm tra kết nối không hỗ trợ với {discovery_format}",
+    "model_not_found": "Mô hình không tồn tại",
+    "image_test_default_prompt": "A cute orange cat astronaut sticker on a clean pastel background.",
+    "image_test_success": "Kiểm tra tạo ảnh thành công",
+    "image_test_failed": "Kiểm tra tạo ảnh thất bại: {err_msg}",
+    "image_test_no_image_returned": "Upstream trả 200 nhưng không có ảnh (có thể bị lọc nội dung hoặc lỗi upstream)",
+    "image_test_model_not_t2i_endpoint": "model_id={model_id} không hỗ trợ text-to-image",
+    "image_test_timeout": "Hết thời gian kiểm tra tạo ảnh (120s)",
     # Projects
     "unknown_style_template": "Mẫu phong cách không xác định: {template_id}",
     "project_id_not_editable": "content_mode không thể chỉnh sửa sau khi tạo dự án",

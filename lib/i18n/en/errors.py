@@ -90,6 +90,13 @@ MESSAGES = {
     "endpoint_media_type_mismatch": "Endpoint media_type mismatch: {detail}",
     "backend_creation_failed": "Backend creation failed: {err_msg}",
     "unsupported_discovery_format": "Connection test not supported for {discovery_format}",
+    "model_not_found": "Model does not exist",
+    "image_test_default_prompt": "A cute orange cat astronaut sticker on a clean pastel background.",
+    "image_test_success": "Image generation test succeeded",
+    "image_test_failed": "Image generation test failed: {err_msg}",
+    "image_test_no_image_returned": "Upstream returned 200 with no image (likely content filter or upstream issue)",
+    "image_test_model_not_t2i_endpoint": "model_id={model_id} does not support text-to-image",
+    "image_test_timeout": "Image generation test timed out (120s)",
     # Projects
     "unknown_style_template": "Unknown style template: {template_id}",
     "project_id_not_editable": "content_mode cannot be modified after project creation",

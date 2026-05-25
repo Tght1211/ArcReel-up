@@ -90,6 +90,13 @@ MESSAGES = {
     "endpoint_media_type_mismatch": "模型 endpoint 与媒体类型不一致: {detail}",
     "backend_creation_failed": "Backend 创建失败: {err_msg}",
     "unsupported_discovery_format": "供应商 {discovery_format} 暂不支持连接测试",
+    "model_not_found": "模型不存在",
+    "image_test_default_prompt": "A cute orange cat astronaut sticker on a clean pastel background.",
+    "image_test_success": "生图测试成功",
+    "image_test_failed": "生图测试失败：{err_msg}",
+    "image_test_no_image_returned": "上游返回 200 但未生成图片（可能触发内容安全过滤或上游异常）",
+    "image_test_model_not_t2i_endpoint": "model_id={model_id} 不是支持文生图的端点",
+    "image_test_timeout": "生图测试超时（120s）",
     # Projects
     "unknown_style_template": "未知的风格模版: {template_id}",
     "project_id_not_editable": "项目创建后不支持修改 content_mode",
