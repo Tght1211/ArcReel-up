@@ -294,6 +294,28 @@ function withAuthQuery(url: string): string {
   return `${url}${sep}token=${encodeURIComponent(token)}`;
 }
 
+// ==================== Image generation test types ====================
+
+/** 上游 OpenAI 兼容返回的可选 metadata（sub2api 中转会返；非保证存在）。 */
+export interface UpstreamImageMetadata {
+  model: string | null;
+  size: string | null;
+  quality: string | null;
+  output_format: string | null;
+}
+
+/** 自定义供应商生图测试响应（success=false 时业务失败，HTTP 仍 200）。 */
+export interface ImageGenerationTestResponse {
+  success: boolean;
+  message: string;
+  latency_ms: number;
+  status_code: number | null;
+  image_data_url: string | null;
+  revised_prompt: string | null;
+  model: string;
+  upstream_metadata: UpstreamImageMetadata;
+}
+
 class API {
   /**
    * 通用请求方法
@@ -1647,6 +1669,16 @@ class API {
 
   static async testCustomConnectionById(id: number): Promise<{ success: boolean; message: string }> {
     return this.request(`/custom-providers/${id}/test`, { method: "POST" });
+  }
+
+  static async testCustomProviderImageGeneration(
+    id: number,
+    data: { model_id: string; prompt?: string },
+  ): Promise<ImageGenerationTestResponse> {
+    return this.request(`/custom-providers/${id}/test-image-generation`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   static async getCustomProviderCredentials(id: number): Promise<CustomProviderCredentials> {
