@@ -11,6 +11,7 @@ interface ShotSplitViewProps {
   contentMode: "narration" | "drama";
   aspectRatio: "9:16" | "16:9";
   projectName: string;
+  episode: number;
   isGridMode?: boolean;
   onUpdatePrompt?: (
     segmentId: string,
@@ -40,6 +41,7 @@ export function ShotSplitView({
   contentMode,
   aspectRatio,
   projectName,
+  episode,
   isGridMode,
   onUpdatePrompt,
   onGenerateStoryboard,
@@ -113,6 +115,7 @@ export function ShotSplitView({
         contentMode={contentMode}
         aspectRatio={aspectRatio}
         projectName={projectName}
+        episode={episode}
         isGridMode={isGridMode}
         selectedIndex={safeIndex}
         totalCount={segments.length}

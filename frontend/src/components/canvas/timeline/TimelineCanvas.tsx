@@ -258,6 +258,7 @@ export function TimelineCanvas({
             contentMode={contentMode}
             aspectRatio={aspectRatio}
             projectName={projectName}
+            episode={episode}
             isGridMode={false}
             onUpdatePrompt={handleUpdatePrompt}
             onGenerateStoryboard={handleGenSb}

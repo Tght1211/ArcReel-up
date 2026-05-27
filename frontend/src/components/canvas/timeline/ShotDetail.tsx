@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { VideoPromptCopyModal } from "./VideoPromptCopyModal";
 import { useTranslation } from "react-i18next";
 import {
   ImageIcon,
@@ -42,6 +43,7 @@ interface ShotDetailProps {
   contentMode: "narration" | "drama";
   aspectRatio: "9:16" | "16:9";
   projectName: string;
+  episode: number;
   isGridMode?: boolean;
   /** Total shot count for "1/N" indicator */
   selectedIndex: number;
@@ -276,6 +278,7 @@ export function ShotDetail({
   contentMode,
   aspectRatio,
   projectName,
+  episode,
   isGridMode,
   selectedIndex,
   totalCount,
@@ -308,6 +311,7 @@ export function ShotDetail({
     video_prompt: vp,
   }));
   const [saving, setSaving] = useState(false);
+  const [promptCopyShotId, setPromptCopyShotId] = useState<string | null>(null);
 
   const upstreamSig = useMemo(
     () => stableSig({ ip, vp }),
@@ -626,6 +630,7 @@ export function ShotDetail({
         generateDisabledHint={dirty ? dirtyHint : undefined}
         estimatedCost={vidEstimate ?? undefined}
         onGenerate={() => onGenerateVideo?.(segmentId)}
+        onCopyPrompt={() => setPromptCopyShotId(segmentId)}
         onRestore={onRestoreVideo}
       />
     </div>
@@ -786,6 +791,15 @@ export function ShotDetail({
         mid={midColumn}
         right={rightColumn}
       />
+      {promptCopyShotId && (
+        <VideoPromptCopyModal
+          projectName={projectName}
+          episode={episode}
+          segmentId={promptCopyShotId}
+          open
+          onClose={() => setPromptCopyShotId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -287,6 +287,7 @@ export function GridImageToVideoCanvas({
             contentMode={contentMode}
             aspectRatio={aspectRatio}
             projectName={projectName}
+            episode={episode}
             isGridMode
             onUpdatePrompt={handleUpdatePrompt}
             onGenerateStoryboard={handleGenSb}
