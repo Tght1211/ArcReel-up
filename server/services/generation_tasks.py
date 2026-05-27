@@ -28,18 +28,21 @@ from lib.prompt_builders import build_character_prompt, build_prop_prompt, build
 from lib.prompt_utils import (
     image_prompt_to_yaml,
     is_structured_image_prompt,
-    is_structured_video_prompt,
-    video_prompt_to_yaml,
 )
 from lib.providers import PROVIDER_ARK, PROVIDER_GEMINI, PROVIDER_GROK, PROVIDER_OPENAI, PROVIDER_VIDU
 from lib.storyboard_sequence import (
-    build_previous_storyboard_reference,
     find_storyboard_item,
     get_storyboard_items,
     group_scenes_by_segment_break,
     resolve_previous_storyboard_path,
 )
 from lib.thumbnail import extract_video_thumbnail
+from lib.video_prompt_resolver import (
+    collect_reference_images as _collect_reference_images,
+)
+from lib.video_prompt_resolver import (
+    normalize_video_prompt as _normalize_video_prompt,
+)
 from server.services.resolution_resolver import resolve_resolution
 
 pm = ProjectManager(app_data_dir())
@@ -443,49 +446,6 @@ def _normalize_storyboard_prompt(prompt: str | dict, style: str) -> str:
     return image_prompt_to_yaml(normalized_prompt, style)
 
 
-def _normalize_video_prompt(prompt: str | dict) -> str:
-    """归一化视频 prompt 并在末尾追加统一文本化的反向提示词。"""
-    from lib.prompt_builders import append_video_negative_tail
-
-    if isinstance(prompt, str):
-        if not prompt.strip():
-            raise ValueError("prompt must not be empty")
-        return append_video_negative_tail(prompt)
-
-    if not isinstance(prompt, dict):
-        raise ValueError("prompt must be a string or object")
-
-    if not is_structured_video_prompt(prompt):
-        raise ValueError("prompt must be a string or include action/camera_motion")
-
-    action_text = str(prompt.get("action", "")).strip()
-    if not action_text:
-        raise ValueError("prompt.action must not be empty")
-
-    dialogue = prompt.get("dialogue", [])
-    if dialogue is None:
-        dialogue = []
-    if not isinstance(dialogue, list):
-        raise ValueError("prompt.dialogue must be an array")
-
-    normalized_dialogue = []
-    for item in dialogue:
-        if not isinstance(item, dict):
-            continue
-        speaker = str(item.get("speaker", "") or "").strip()
-        line = str(item.get("line", "") or "").strip()
-        if speaker or line:
-            normalized_dialogue.append({"speaker": speaker, "line": line})
-
-    normalized_prompt: dict[str, Any] = {
-        "action": action_text,
-        "camera_motion": str(prompt.get("camera_motion", "") or "") or "Static",
-        "ambiance_audio": str(prompt.get("ambiance_audio", "") or ""),
-        "dialogue": normalized_dialogue,
-    }
-    return append_video_negative_tail(video_prompt_to_yaml(normalized_prompt))
-
-
 def _get_model_default_duration(provider_name: str, model_name: str | None) -> int:
     """从 PROVIDER_REGISTRY 查找模型的 supported_durations[0]，找不到则 fallback 4。"""
     provider_meta = PROVIDER_REGISTRY.get(provider_name)
@@ -495,85 +455,6 @@ def _get_model_default_duration(provider_name: str, model_name: str | None) -> i
             return model_info.supported_durations[0]
     # 自定义供应商或 registry 中无此模型时 fallback
     return 4
-
-
-def _collect_sheet_paths(
-    project: dict,
-    project_path: Path,
-    items: list[dict],
-    *,
-    char_field: str,
-    scene_field: str,
-    prop_field: str,
-    max_count: int = 0,
-) -> tuple[list[Path], set[str]]:
-    """Collect character_sheet, scene_sheet and prop_sheet paths from scene/segment items.
-
-    Returns (list of existing Paths, set of relative sheet strings for dedup).
-    If *max_count* > 0 collection stops after that many images.
-    """
-    seen: set[str] = set()
-    paths: list[Path] = []
-
-    characters = project.get("characters", {})
-    project_scenes = project.get("scenes", {})
-    project_props = project.get("props", {})
-
-    for item in items:
-        for char_name in item.get(char_field, []):
-            sheet = characters.get(char_name, {}).get("character_sheet")
-            if sheet and sheet not in seen:
-                path = project_path / sheet
-                if path.exists():
-                    paths.append(path)
-                    seen.add(sheet)
-        for scene_name in item.get(scene_field, []):
-            sheet = project_scenes.get(scene_name, {}).get("scene_sheet")
-            if sheet and sheet not in seen:
-                path = project_path / sheet
-                if path.exists():
-                    paths.append(path)
-                    seen.add(sheet)
-        for prop_name in item.get(prop_field, []):
-            sheet = project_props.get(prop_name, {}).get("prop_sheet")
-            if sheet and sheet not in seen:
-                path = project_path / sheet
-                if path.exists():
-                    paths.append(path)
-                    seen.add(sheet)
-        if max_count and len(paths) >= max_count:
-            break
-
-    return paths, seen
-
-
-def _collect_reference_images(
-    project: dict,
-    project_path: Path,
-    target_item: dict,
-    *,
-    char_field: str,
-    scene_field: str,
-    prop_field: str,
-    extra_reference_images: list[str] | None = None,
-    previous_storyboard_path: Path | None = None,
-) -> list[object] | None:
-    sheet_paths, _ = _collect_sheet_paths(
-        project, project_path, [target_item], char_field=char_field, scene_field=scene_field, prop_field=prop_field
-    )
-    reference_images: list[object] = list(sheet_paths)
-
-    for extra in extra_reference_images or []:
-        extra_path = Path(extra)
-        if not extra_path.is_absolute():
-            extra_path = project_path / extra_path
-        if extra_path.exists():
-            reference_images.append(extra_path)
-
-    if previous_storyboard_path and previous_storyboard_path.exists():
-        reference_images.append(build_previous_storyboard_reference(previous_storyboard_path))
-
-    return reference_images or None
 
 
 def _resolve_script_episode(project_name: str, script_file: str | None) -> int | None:
