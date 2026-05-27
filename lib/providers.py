@@ -9,6 +9,7 @@ PROVIDER_GROK = "grok"
 PROVIDER_OPENAI = "openai"
 PROVIDER_VIDU = "vidu"
 PROVIDER_NEWAPI = "newapi"
+PROVIDER_VOLC_XIAOYUNQUE = "volc-xiaoyunque"
 
 CallType = Literal["image", "video", "text"]
 CALL_TYPE_IMAGE: CallType = "image"

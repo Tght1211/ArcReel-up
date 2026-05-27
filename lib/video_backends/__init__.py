@@ -22,6 +22,7 @@ __all__ = [
     "PROVIDER_GROK",
     "PROVIDER_NEWAPI",
     "PROVIDER_OPENAI",
+    "PROVIDER_VOLC_XIAOYUNQUE",
     "VideoBackend",
     "VideoCapability",
     "VideoGenerationRequest",
@@ -63,3 +64,9 @@ from lib.providers import PROVIDER_VIDU  # noqa: E402
 from lib.video_backends.vidu import ViduVideoBackend  # noqa: E402
 
 register_backend(PROVIDER_VIDU, ViduVideoBackend)
+
+# 小云雀（火山视觉服务）
+from lib.providers import PROVIDER_VOLC_XIAOYUNQUE  # noqa: E402
+from lib.video_backends.volc_xiaoyunque import VolcXiaoyunqueBackend  # noqa: E402
+
+register_backend(PROVIDER_VOLC_XIAOYUNQUE, VolcXiaoyunqueBackend)
