@@ -70,3 +70,27 @@ def test_returns_bundle_json(client):
 def test_missing_segment_404(client):
     resp = client.get("/api/v1/projects/p1/episodes/1/shots/9999/video-prompt-bundle")
     assert resp.status_code == 404
+
+
+# ── Task A.3：ZIP 端点 ────────────────────────────────────────────────────────
+
+import io
+import zipfile
+
+
+def test_zip_endpoint_returns_zip(client):
+    resp = client.get("/api/v1/projects/p1/episodes/1/shots/001/video-prompt-bundle.zip")
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"] == "application/zip"
+    assert "attachment" in resp.headers["content-disposition"]
+
+    zf = zipfile.ZipFile(io.BytesIO(resp.content))
+    names = zf.namelist()
+    assert "prompt.txt" in names
+    assert "README.txt" in names
+    assert any(n.startswith("references/") for n in names)
+
+    # prompt 内容应等于 JSON 端点返回的 prompt 字段
+    json_resp = client.get("/api/v1/projects/p1/episodes/1/shots/001/video-prompt-bundle")
+    expected_prompt = json_resp.json()["prompt"]
+    assert zf.read("prompt.txt").decode("utf-8") == expected_prompt
