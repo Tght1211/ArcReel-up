@@ -9,6 +9,7 @@ MESSAGES: dict[str, str] = {
     "provider_name_grok": "Grok",
     "provider_name_openai": "OpenAI",
     "provider_name_vidu": "Vidu",
+    "provider_name_volc-xiaoyunque": "Volcengine Xiaoyunque",
     # Provider descriptions
     "provider_desc_gemini-aistudio": "Google AI Studio provides Gemini models with image and video generation, ideal for rapid prototyping and personal projects.",
     "provider_desc_gemini-vertex": "Google Cloud Vertex AI enterprise platform supporting Gemini and Imagen models with higher quotas and audio generation.",
@@ -17,6 +18,7 @@ MESSAGES: dict[str, str] = {
     "provider_desc_grok": "xAI Grok models supporting video and image generation.",
     "provider_desc_openai": "OpenAI platform supporting GPT-5.4 text, GPT Image and Sora video generation.",
     "provider_desc_vidu": "Shengshu Vidu video platform supporting text-to-video, image-to-video, first-last frame, reference-to-video and reference-to-image. Image and video only.",
+    "provider_desc_volc-xiaoyunque": "Volcengine Visual Smart Video Agent 2.0, supports both with-reference and text-only modes; references must be served via signed URLs from a TOS bucket in the same account.",
     # Agent preset notes (lib/agent_provider_catalog.py)
     "preset_notes_deepseek": "DeepSeek official Anthropic-compat endpoint; needs sk- prefixed key.",
     "preset_notes_xiaomi_mimo": "Xiaomi MiMo only accepts known model names; no public model list.",
