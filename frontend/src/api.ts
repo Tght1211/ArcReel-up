@@ -48,6 +48,7 @@ import type {
 import type { GenerationMode } from "@/utils/generation-mode";
 import type { GridGeneration } from "@/types/grid";
 import type { Asset, AssetType, AssetCreatePayload, AssetUpdatePayload } from "@/types/asset";
+import type { VideoPromptBundleDTO } from "@/types/video-prompt";
 import type {
   AgentCredential,
   CreateAgentCredentialRequest,
@@ -999,6 +1000,36 @@ class API {
           duration_seconds: durationSeconds,
         }),
       }
+    );
+  }
+
+  /**
+   * 获取分镜的视频生成 prompt + 参考图（用于"复制 prompt"弹窗）
+   */
+  static async getVideoPromptBundle(
+    projectName: string,
+    episode: number,
+    segmentId: string
+  ): Promise<VideoPromptBundleDTO> {
+    return this.request(
+      `/projects/${encodeURIComponent(projectName)}` +
+        `/episodes/${episode}/shots/${encodeURIComponent(segmentId)}` +
+        `/video-prompt-bundle`
+    );
+  }
+
+  /**
+   * 返回 ZIP 下载 URL（前端用 <a download> 或 window.location 触发下载）
+   */
+  static getVideoPromptBundleZipUrl(
+    projectName: string,
+    episode: number,
+    segmentId: string
+  ): string {
+    return (
+      `/api/v1/projects/${encodeURIComponent(projectName)}` +
+      `/episodes/${episode}/shots/${encodeURIComponent(segmentId)}` +
+      `/video-prompt-bundle.zip`
     );
   }
 
