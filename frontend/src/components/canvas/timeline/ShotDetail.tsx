@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VideoPromptCopyModal } from "./VideoPromptCopyModal";
+import { VideoImportModal } from "./VideoImportModal";
 import { useTranslation } from "react-i18next";
 import {
   ImageIcon,
@@ -312,6 +313,7 @@ export function ShotDetail({
   }));
   const [saving, setSaving] = useState(false);
   const [promptCopyShotId, setPromptCopyShotId] = useState<string | null>(null);
+  const [importShotId, setImportShotId] = useState<string | null>(null);
 
   const upstreamSig = useMemo(
     () => stableSig({ ip, vp }),
@@ -631,6 +633,7 @@ export function ShotDetail({
         estimatedCost={vidEstimate ?? undefined}
         onGenerate={() => onGenerateVideo?.(segmentId)}
         onCopyPrompt={() => setPromptCopyShotId(segmentId)}
+        onImportVideo={() => setImportShotId(segmentId)}
         onRestore={onRestoreVideo}
       />
     </div>
@@ -798,6 +801,15 @@ export function ShotDetail({
           segmentId={promptCopyShotId}
           open
           onClose={() => setPromptCopyShotId(null)}
+        />
+      )}
+      {importShotId && (
+        <VideoImportModal
+          projectName={projectName}
+          episode={episode}
+          segmentId={importShotId}
+          open
+          onClose={() => setImportShotId(null)}
         />
       )}
     </div>

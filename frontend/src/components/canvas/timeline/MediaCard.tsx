@@ -1,4 +1,4 @@
-import { Sparkles, ImageIcon, Film, Copy } from "lucide-react";
+import { Sparkles, ImageIcon, Film, Copy, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { API } from "@/api";
 import { useProjectsStore } from "@/stores/projects-store";
@@ -35,6 +35,8 @@ interface MediaCardProps {
   onGenerate?: () => void;
   /** 点击复制 prompt 按钮（仅 kind=video 渲染） */
   onCopyPrompt?: () => void;
+  /** 点击导入外部视频按钮（仅 kind=video 渲染） */
+  onImportVideo?: () => void;
   /** 版本恢复回调 */
   onRestore?: () => Promise<void> | void;
 }
@@ -53,6 +55,7 @@ export function MediaCard({
   estimatedCost,
   onGenerate,
   onCopyPrompt,
+  onImportVideo,
   onRestore,
 }: MediaCardProps) {
   const { t } = useTranslation("dashboard");
@@ -104,6 +107,18 @@ export function MediaCard({
             style={{ color: "var(--color-text-3)" }}
           >
             <Copy className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {kind === "video" && onImportVideo && (
+          <button
+            type="button"
+            onClick={onImportVideo}
+            title={t("media_import_video_hint")}
+            aria-label={t("media_import_video")}
+            className="focus-ring rounded p-1 transition-opacity hover:opacity-80"
+            style={{ color: "var(--color-text-3)" }}
+          >
+            <Upload className="h-3.5 w-3.5" />
           </button>
         )}
         <VersionTimeMachine

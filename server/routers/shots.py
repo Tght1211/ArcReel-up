@@ -17,6 +17,7 @@ from fastapi.responses import StreamingResponse
 
 from lib.app_data_dir import app_data_dir
 from lib.i18n import Translator
+from lib.project_change_hints import emit_project_change_batch, project_change_source
 from lib.project_manager import ProjectManager
 from lib.thumbnail import extract_video_thumbnail
 from lib.version_manager import VersionManager
@@ -275,6 +276,22 @@ async def import_external_video(
             "video_thumbnail",
             f"thumbnails/scene_{segment_id}.jpg",
         )
+
+    # emit project event 让前端 SSE 监听者刷新该镜头的视频
+    change = {
+        "entity_type": "scene_asset",
+        "action": "updated",
+        "entity_id": segment_id,
+        "label": _t("external_video_imported", segment_id=segment_id),
+        "episode": episode,
+        "focus": {"pane": "timeline", "episode": episode, "segment_id": segment_id},
+        "important": False,
+    }
+    try:
+        with project_change_source("webui"):
+            emit_project_change_batch(project_name, [change], source="webui")
+    except Exception:
+        logger.warning("emit external_video event failed", exc_info=True)
 
     return {
         "success": True,

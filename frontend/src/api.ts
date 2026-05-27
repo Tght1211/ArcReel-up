@@ -48,7 +48,7 @@ import type {
 import type { GenerationMode } from "@/utils/generation-mode";
 import type { GridGeneration } from "@/types/grid";
 import type { Asset, AssetType, AssetCreatePayload, AssetUpdatePayload } from "@/types/asset";
-import type { VideoPromptBundleDTO } from "@/types/video-prompt";
+import type { VideoPromptBundleDTO, ImportVideoResultDTO } from "@/types/video-prompt";
 import type {
   AgentCredential,
   CreateAgentCredentialRequest,
@@ -1031,6 +1031,46 @@ class API {
       `/episodes/${episode}/shots/${encodeURIComponent(segmentId)}` +
       `/video-prompt-bundle.zip`
     );
+  }
+
+  /**
+   * 上传本地视频作为指定镜头的新版本（XHR，带进度回调）
+   */
+  static importExternalVideo(
+    projectName: string,
+    episode: number,
+    segmentId: string,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<ImportVideoResultDTO> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const url =
+        `/api/v1/projects/${encodeURIComponent(projectName)}` +
+        `/episodes/${episode}/shots/${encodeURIComponent(segmentId)}/import-video`;
+      xhr.open("POST", url);
+      const token = getToken();
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded, e.total);
+      };
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText) as { detail?: string } & Record<string, unknown>;
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(data as unknown as ImportVideoResultDTO);
+          } else {
+            reject(new Error(data?.detail ?? `HTTP ${xhr.status}`));
+          }
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error(String(e)));
+        }
+      };
+      xhr.onerror = () => reject(new Error("Network error"));
+      const fd = new FormData();
+      fd.append("file", file);
+      xhr.send(fd);
+    });
   }
 
   /**

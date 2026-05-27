@@ -22,3 +22,11 @@ export interface VideoPromptBundleDTO {
   aspect_ratio: string;
   reference_images: VideoReferenceImageDTO[];
 }
+
+export interface ImportVideoResultDTO {
+  success: boolean;
+  video_path: string;
+  thumbnail_path: string;
+  version: number;
+  url: string;
+}
