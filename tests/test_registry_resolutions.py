@@ -11,7 +11,11 @@ def test_model_info_has_resolutions_default_empty_list():
 def test_all_image_video_models_have_resolutions_populated():
     missing: list[str] = []
     ark_provider_ids = {"ark", "ark-agent-plan"}
+    # volc-xiaoyunque 的视频分辨率由 ratio + Agent 自动决定，不暴露 resolutions 选项
+    resolution_optional_providers = {"volc-xiaoyunque"}
     for pid, meta in PROVIDER_REGISTRY.items():
+        if pid in resolution_optional_providers:
+            continue
         for mid, minfo in meta.models.items():
             if minfo.media_type in ("image", "video"):
                 if not minfo.resolutions and not (pid in ark_provider_ids and mid.startswith("doubao-seedream")):

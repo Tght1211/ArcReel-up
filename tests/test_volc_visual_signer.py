@@ -58,17 +58,38 @@ def test_sign_request_canonicalizes_query_lexicographically():
 
 def test_signing_key_includes_all_scope_segments():
     """同 AK/SK 不同 region 应得不同签名。"""
-    base = dict(
-        method="POST",
-        host="visual.volcengineapi.com",
-        path="/",
-        query={"Action": "a", "Version": "v"},
-        headers={},
-        body=b"",
-        access_key="ak",
-        secret_key="sk",
-        timestamp=datetime(2026, 5, 28, tzinfo=UTC),
+    common_kwargs = {
+        "method": "POST",
+        "host": "visual.volcengineapi.com",
+        "path": "/",
+        "query": {"Action": "a", "Version": "v"},
+        "headers": {},
+        "body": b"",
+        "access_key": "ak",
+        "secret_key": "sk",
+        "timestamp": datetime(2026, 5, 28, tzinfo=UTC),
+    }
+    h_default = sign_request(
+        method=common_kwargs["method"],
+        host=common_kwargs["host"],
+        path=common_kwargs["path"],
+        query=common_kwargs["query"],
+        headers=common_kwargs["headers"],
+        body=common_kwargs["body"],
+        access_key=common_kwargs["access_key"],
+        secret_key=common_kwargs["secret_key"],
+        timestamp=common_kwargs["timestamp"],
     )
-    h_default = sign_request(**base)
-    h_other = sign_request(**{**base, "region": "ap-southeast-1"})
+    h_other = sign_request(
+        method=common_kwargs["method"],
+        host=common_kwargs["host"],
+        path=common_kwargs["path"],
+        query=common_kwargs["query"],
+        headers=common_kwargs["headers"],
+        body=common_kwargs["body"],
+        access_key=common_kwargs["access_key"],
+        secret_key=common_kwargs["secret_key"],
+        timestamp=common_kwargs["timestamp"],
+        region="ap-southeast-1",
+    )
     assert h_default["Authorization"] != h_other["Authorization"]
