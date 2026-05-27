@@ -57,6 +57,7 @@ from server.routers import (
     providers,
     reference_videos,
     scenes,
+    shots,
     system_config,
     tasks,
     usage,
@@ -527,6 +528,7 @@ app.include_router(cost_estimation.router, prefix="/api/v1", tags=["费用估算
 app.include_router(grids.router, prefix="/api/v1", tags=["宫格图"])
 app.include_router(reference_videos.router, prefix="/api/v1", tags=["参考生视频"])
 app.include_router(assets.router, prefix="/api/v1", tags=["全局资产库"])
+app.include_router(shots.router, prefix="/api/v1", tags=["分镜"])
 
 
 def create_generation_worker() -> GenerationWorker:

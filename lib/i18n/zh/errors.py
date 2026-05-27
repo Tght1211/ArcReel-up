@@ -145,4 +145,5 @@ MESSAGES = {
     "agent_credential_not_found": "凭证不存在",
     "agent_cannot_delete_active": "无法删除当前活跃凭证，请先切换到其他凭证",
     "agent_test_validation_error": "测试连接失败：{error}",
+    "video_prompt_bundle_not_ready": "未找到对应分镜或剧本数据",
 }

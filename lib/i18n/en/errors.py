@@ -145,4 +145,5 @@ MESSAGES = {
     "agent_credential_not_found": "Credential not found",
     "agent_cannot_delete_active": "Cannot delete the active credential; activate another first",
     "agent_test_validation_error": "Test connection failed: {error}",
+    "video_prompt_bundle_not_ready": "Shot or script data not found",
 }

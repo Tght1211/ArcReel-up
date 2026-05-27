@@ -145,4 +145,5 @@ MESSAGES = {
     "agent_credential_not_found": "Không tìm thấy xác thực",
     "agent_cannot_delete_active": "Không thể xóa xác thực đang hoạt động; hãy kích hoạt xác thực khác trước",
     "agent_test_validation_error": "Kiểm tra kết nối thất bại: {error}",
+    "video_prompt_bundle_not_ready": "Không tìm thấy phân cảnh hoặc dữ liệu kịch bản",
 }
