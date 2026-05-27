@@ -146,4 +146,8 @@ MESSAGES = {
     "agent_cannot_delete_active": "无法删除当前活跃凭证，请先切换到其他凭证",
     "agent_test_validation_error": "测试连接失败：{error}",
     "video_prompt_bundle_not_ready": "未找到对应分镜或剧本数据",
+    # Import external video
+    "external_video_unsupported_format": "不支持的视频格式 {ext}（允许 {allowed}）",
+    "external_video_too_large": "视频过大 {size_mb}MB，上限 {limit_mb}MB",
+    "ffmpeg_required": "服务端缺少 ffmpeg，请联系管理员",
 }

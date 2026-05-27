@@ -146,4 +146,8 @@ MESSAGES = {
     "agent_cannot_delete_active": "Cannot delete the active credential; activate another first",
     "agent_test_validation_error": "Test connection failed: {error}",
     "video_prompt_bundle_not_ready": "Shot or script data not found",
+    # Import external video
+    "external_video_unsupported_format": "Unsupported video format {ext} (allowed: {allowed})",
+    "external_video_too_large": "Video too large {size_mb}MB, limit {limit_mb}MB",
+    "ffmpeg_required": "Server is missing ffmpeg, please contact admin",
 }

@@ -146,4 +146,8 @@ MESSAGES = {
     "agent_cannot_delete_active": "Không thể xóa xác thực đang hoạt động; hãy kích hoạt xác thực khác trước",
     "agent_test_validation_error": "Kiểm tra kết nối thất bại: {error}",
     "video_prompt_bundle_not_ready": "Không tìm thấy phân cảnh hoặc dữ liệu kịch bản",
+    # Import external video
+    "external_video_unsupported_format": "Định dạng video không được hỗ trợ {ext} (cho phép: {allowed})",
+    "external_video_too_large": "Video quá lớn {size_mb}MB, giới hạn {limit_mb}MB",
+    "ffmpeg_required": "Máy chủ thiếu ffmpeg, vui lòng liên hệ quản trị viên",
 }
