@@ -35,11 +35,12 @@ async def test_with_refs_picks_with_vinput_reqkey(tmp_path):
 
     async def fake_submit(self, request, ref_urls):
         submitted_payload["ref_urls"] = ref_urls
-        return "tid-1"
+        return "tid-1", "pippit_iv2v_v20_cvtob_with_vinput"
 
-    async def fake_poll(self, task_id, request):
+    async def fake_poll(self, task_id, req_key, request):
         from lib.video_backends.base import VideoGenerationResult
 
+        submitted_payload["query_req_key"] = req_key
         return VideoGenerationResult(
             video_path=request.output_path,
             provider="volc-xiaoyunque",
@@ -60,6 +61,49 @@ async def test_with_refs_picks_with_vinput_reqkey(tmp_path):
 
     assert result.video_path == req.output_path
     assert submitted_payload["ref_urls"]
+    # 查询 req_key 必须等于 submit 用的 req_key
+    assert submitted_payload["query_req_key"] == "pippit_iv2v_v20_cvtob_with_vinput"
+
+
+@pytest.mark.asyncio
+async def test_without_refs_picks_plain_cvtob_reqkey(tmp_path):
+    """无参考图（纯文生视频）应走 pippit_iv2v_v20_cvtob（无后缀）。"""
+    req = VideoGenerationRequest(
+        prompt="cat in the void",
+        output_path=tmp_path / "out.mp4",
+        aspect_ratio="9:16",
+        duration_seconds=10,
+    )
+    submitted_payload = {}
+
+    async def fake_submit(self, request, ref_urls):
+        submitted_payload["ref_urls"] = ref_urls
+        # 模拟真实 _submit：根据 ref_urls 是否为空选择 req_key
+        from lib.video_backends.volc_xiaoyunque import REQ_KEY_WITH_REFS, REQ_KEY_WITHOUT_REFS
+
+        req_key = REQ_KEY_WITH_REFS if ref_urls else REQ_KEY_WITHOUT_REFS
+        return "tid-2", req_key
+
+    async def fake_poll(self, task_id, req_key, request):
+        from lib.video_backends.base import VideoGenerationResult
+
+        submitted_payload["query_req_key"] = req_key
+        return VideoGenerationResult(
+            video_path=request.output_path,
+            provider="volc-xiaoyunque",
+            model="xiaoyunque-agent-2.0",
+            duration_seconds=request.duration_seconds,
+        )
+
+    with (
+        patch.object(VolcXiaoyunqueBackend, "_submit", new=fake_submit),
+        patch.object(VolcXiaoyunqueBackend, "_poll_until_done", new=fake_poll),
+    ):
+        backend = _make_backend()
+        await backend.generate(req)
+
+    assert submitted_payload["ref_urls"] == []
+    assert submitted_payload["query_req_key"] == "pippit_iv2v_v20_cvtob"
 
 
 def test_duration_mapping():

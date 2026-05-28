@@ -22,12 +22,14 @@ from lib.volc_visual_shared import VISUAL_HOST, sign_request
 
 logger = logging.getLogger(__name__)
 
-# 文档已知
+# 来自火山官方文档（85621/2359610「有参考」 + 85621/2359611「无参考」）
+# - _with_vinput：支持图片 + 视频参考输入（img_url_list 必填）
+# - 不带后缀：纯文生视频（img_url_list 可选）
 REQ_KEY_WITH_REFS = "pippit_iv2v_v20_cvtob_with_vinput"
-# TODO（实施前需补全）：见 spec §13。占位字串确保走 with_refs 路径前不会误用。
-REQ_KEY_WITHOUT_REFS = "TODO_NO_REF_REQ_KEY"
+REQ_KEY_WITHOUT_REFS = "pippit_iv2v_v20_cvtob"
 
-# TODO（实施前需 AK/SK 探活确认）：按 Volcengine "Visual" 服务一贯命名先用 GetResult
+# 查询 Action 名按 Volcengine "Visual" 服务一贯命名；如联调时 AK/SK 跑出
+# 401/403 with "InvalidAction"，按官方文档实际值修正
 SUBMIT_ACTION = "CVSync2AsyncSubmitTask"
 QUERY_ACTION = "CVSync2AsyncGetResult"
 API_VERSION = "2022-08-31"
@@ -78,8 +80,8 @@ class VolcXiaoyunqueBackend:
 
     async def generate(self, request: VideoGenerationRequest) -> VideoGenerationResult:
         ref_urls = await self._upload_refs(request)
-        task_id = await self._submit(request, ref_urls)
-        return await self._poll_until_done(task_id, request)
+        task_id, req_key = await self._submit(request, ref_urls)
+        return await self._poll_until_done(task_id, req_key, request)
 
     async def _upload_refs(self, request: VideoGenerationRequest) -> list[str]:
         all_imgs: list[Path] = []
@@ -96,7 +98,7 @@ class VolcXiaoyunqueBackend:
                 urls.append(await self._uploader.upload_image(p))
         return urls
 
-    async def _submit(self, request: VideoGenerationRequest, ref_urls: list[str]) -> str:
+    async def _submit(self, request: VideoGenerationRequest, ref_urls: list[str]) -> tuple[str, str]:
         req_key = REQ_KEY_WITH_REFS if ref_urls else REQ_KEY_WITHOUT_REFS
         body: dict[str, object] = {
             "req_key": req_key,
@@ -135,15 +137,16 @@ class VolcXiaoyunqueBackend:
             raise RuntimeError(f"submit returned unexpected data type: {task_data!r}")
         task_id = str(task_data["task_id"])
         logger.info("小云雀任务已提交 task_id=%s req_key=%s", task_id, req_key)
-        return task_id
+        return task_id, req_key
 
     async def _poll_until_done(
         self,
         task_id: str,
+        req_key: str,
         request: VideoGenerationRequest,
     ) -> VideoGenerationResult:
         async def _query() -> dict[str, object]:
-            body = json.dumps({"req_key": REQ_KEY_WITH_REFS, "task_id": task_id}).encode("utf-8")
+            body = json.dumps({"req_key": req_key, "task_id": task_id}).encode("utf-8")
             query = {"Action": QUERY_ACTION, "Version": API_VERSION}
             headers = sign_request(
                 method="POST",
