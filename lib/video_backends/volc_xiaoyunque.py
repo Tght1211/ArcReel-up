@@ -25,14 +25,23 @@ logger = logging.getLogger(__name__)
 # 来自火山官方文档（85621/2359610「有参考」 + 85621/2359611「无参考」）
 # - _with_vinput：支持图片 + 视频参考输入（img_url_list 必填）
 # - 不带后缀：纯文生视频（img_url_list 可选）
+# 控制台开通页：https://console.volcengine.com/ai/ability/detail/5
 REQ_KEY_WITH_REFS = "pippit_iv2v_v20_cvtob_with_vinput"
 REQ_KEY_WITHOUT_REFS = "pippit_iv2v_v20_cvtob"
 
-# 查询 Action 名按 Volcengine "Visual" 服务一贯命名；如联调时 AK/SK 跑出
-# 401/403 with "InvalidAction"，按官方文档实际值修正
 SUBMIT_ACTION = "CVSync2AsyncSubmitTask"
 QUERY_ACTION = "CVSync2AsyncGetResult"
 API_VERSION = "2022-08-31"
+
+# 业务错误码：可重试 vs 立即失败（不重试的多为内容审核/参数错误）
+# 来自文档"业务错误码"表格；HTTP 200 + code=10000 才算成功
+_RETRYABLE_BUSINESS_CODES = {
+    50511,  # Post Img Risk Not Pass — 可重试
+    50429,  # QPS 超限
+    50430,  # 并发超限
+    50500,  # Internal Error
+    50501,  # Internal RPC Error
+}
 
 
 class VolcXiaoyunqueBackend:
@@ -170,10 +179,24 @@ class VolcXiaoyunqueBackend:
                 return str(d.get("status", ""))
             return ""
 
+        def _check_failed(r: dict[str, object]) -> str | None:
+            # 文档明确要求：优先判断 code=10000，再判断 data.status
+            code = r.get("code")
+            if code != 10000:
+                if isinstance(code, int) and code in _RETRYABLE_BUSINESS_CODES:
+                    # 瞬态错误：返回 None 让 poll_with_retry 继续下一轮，并 log warning
+                    logger.warning("小云雀查询瞬态错误 code=%s message=%s 将重试", code, r.get("message"))
+                    return None
+                return f"小云雀查询失败 code={code} message={r.get('message')!r}"
+            status = _get_status(r)
+            if status in ("not_found", "expired"):
+                return f"小云雀任务过期/丢失: status={status} response={r}"
+            return None
+
         result = await poll_with_retry(
             poll_fn=_query,
-            is_done=lambda r: _get_status(r) == "done",
-            is_failed=lambda r: f"小云雀任务过期: {r}" if _get_status(r) in ("not_found", "expired") else None,
+            is_done=lambda r: r.get("code") == 10000 and _get_status(r) == "done",
+            is_failed=_check_failed,
             poll_interval=15,
             max_wait=1200,
             label="Xiaoyunque",

@@ -499,20 +499,21 @@ PROVIDER_REGISTRY: dict[str, ProviderMeta] = {
     "volc-xiaoyunque": ProviderMeta(
         display_name="火山小云雀",
         description=(
-            "火山引擎智能生视频 Agent 2.0，支持有参考图与纯文本两种模式；"
-            "参考图需通过同账号 TOS bucket 走签名 URL 提供。"
+            "火山引擎智能生视频 Agent 2.0（搭载 Seedance 2.0 fast 720p）"
+            "支持有参考图与纯文本两种模式；参考图需通过同账号 TOS bucket 走签名 URL 提供。"
+            "需先在火山控制台 ai/ability/detail/5 开通有参考 + 无参考两项服务。"
         ),
         required_keys=["access_key", "secret_key", "tos_endpoint", "tos_bucket", "tos_region"],
         optional_keys=["video_max_workers", "language"],
         secret_keys=["access_key", "secret_key"],
         models={
             "xiaoyunque-agent-2.0": ModelInfo(
-                display_name="智能生视频 Agent 2.0",
+                display_name="智能生视频 Agent 2.0 (Seedance 2.0 fast 720p)",
                 media_type="video",
                 capabilities=["text_to_video", "image_to_video"],
                 default=True,
                 supported_durations=[15, 30, 60],
-                resolutions=[],
+                resolutions=["720p"],
             ),
         },
         default_base_url="https://visual.volcengineapi.com",

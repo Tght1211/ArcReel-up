@@ -134,3 +134,87 @@ async def test_e2e_raises_on_expired(tmp_path: Path) -> None:
     with patch("httpx.AsyncClient.post", new=fake_post):
         with pytest.raises(RuntimeError, match="过期|expired"):
             await backend.generate(req)
+
+
+@pytest.mark.asyncio
+async def test_e2e_raises_on_nonzero_business_code(tmp_path: Path) -> None:
+    """code != 10000 且不在重试白名单（如 50412 Text Risk Not Pass）应立即抛出。"""
+    req = VideoGenerationRequest(
+        prompt="bad prompt",
+        output_path=tmp_path / "out.mp4",
+        aspect_ratio="9:16",
+        duration_seconds=10,
+    )
+    backend = VolcXiaoyunqueBackend(
+        access_key="ak",
+        secret_key="sk",
+        tos_endpoint="tos.x",
+        tos_bucket="b",
+        tos_region="cn-beijing",
+    )
+
+    async def fake_post(
+        self: object,
+        url: str,
+        *,
+        content: bytes | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> FakeResp:
+        if "CVSync2AsyncSubmitTask" in url:
+            return FakeResp({"code": 10000, "data": {"task_id": "t1"}})
+        return FakeResp({"code": 50412, "data": None, "message": "Text Risk Not Pass"})
+
+    with patch("httpx.AsyncClient.post", new=fake_post):
+        with pytest.raises(RuntimeError, match="code=50412|Text Risk"):
+            await backend.generate(req)
+
+
+@pytest.mark.asyncio
+async def test_e2e_retries_on_retryable_business_code(tmp_path: Path) -> None:
+    """code=50500 Internal Error 应该 log warning + 继续轮询，下一轮 done 即成功。"""
+    req = VideoGenerationRequest(
+        prompt="ok prompt",
+        output_path=tmp_path / "out.mp4",
+        aspect_ratio="9:16",
+        duration_seconds=10,
+    )
+    backend = VolcXiaoyunqueBackend(
+        access_key="ak",
+        secret_key="sk",
+        tos_endpoint="tos.x",
+        tos_bucket="b",
+        tos_region="cn-beijing",
+    )
+
+    call_count = {"n": 0}
+
+    async def fake_post(
+        self: object,
+        url: str,
+        *,
+        content: bytes | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> FakeResp:
+        if "CVSync2AsyncSubmitTask" in url:
+            return FakeResp({"code": 10000, "data": {"task_id": "t1"}})
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return FakeResp({"code": 50500, "data": None, "message": "Internal Error"})
+        return FakeResp(
+            {
+                "code": 10000,
+                "data": {"status": "done", "video_url": "https://x/out.mp4", "resp_data": "{}"},
+            }
+        )
+
+    async def fake_download(url: str, output_path: Path, **kw: object) -> None:
+        Path(output_path).write_bytes(b"x")
+
+    with (
+        patch("httpx.AsyncClient.post", new=fake_post),
+        patch("lib.video_backends.volc_xiaoyunque.download_video", new=fake_download),
+    ):
+        result = await backend.generate(req)
+
+    assert result.task_id == "t1"
+    assert call_count["n"] >= 2  # 第一次 50500 重试，第二次 done
