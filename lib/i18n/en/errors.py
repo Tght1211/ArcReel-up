@@ -150,4 +150,12 @@ MESSAGES = {
     "external_video_unsupported_format": "Unsupported video format {ext} (allowed: {allowed})",
     "external_video_too_large": "Video too large {size_mb}MB, limit {limit_mb}MB",
     "ffmpeg_required": "Server is missing ffmpeg, please contact admin",
+    # Xiaoyunque shortplay
+    "external_script_unsupported_format": "Unsupported script format {ext} (allowed: {allowed})",
+    "external_script_too_long": "Script too long ({actual} chars, limit {limit})",
+    "provider_not_configured": "Provider not configured: {provider}",
+    "provider_missing_keys": "Provider {provider} missing required config: {keys}",
+    "tos_upload_failed": "TOS upload failed: {reason}",
+    "run_not_found": "Run not found: {run_id}",
+    "run_already_terminal": "Run is already in terminal state {status}",
 }

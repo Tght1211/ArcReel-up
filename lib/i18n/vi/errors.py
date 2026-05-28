@@ -150,4 +150,12 @@ MESSAGES = {
     "external_video_unsupported_format": "Định dạng video không được hỗ trợ {ext} (cho phép: {allowed})",
     "external_video_too_large": "Video quá lớn {size_mb}MB, giới hạn {limit_mb}MB",
     "ffmpeg_required": "Máy chủ thiếu ffmpeg, vui lòng liên hệ quản trị viên",
+    # Xiaoyunque shortplay
+    "external_script_unsupported_format": "Định dạng kịch bản không hỗ trợ {ext} (cho phép: {allowed})",
+    "external_script_too_long": "Kịch bản quá dài ({actual} ký tự, giới hạn {limit})",
+    "provider_not_configured": "Provider chưa cấu hình: {provider}",
+    "provider_missing_keys": "Provider {provider} thiếu cấu hình bắt buộc: {keys}",
+    "tos_upload_failed": "Tải lên TOS thất bại: {reason}",
+    "run_not_found": "Không tìm thấy run: {run_id}",
+    "run_already_terminal": "Run đã ở trạng thái cuối {status}",
 }

@@ -64,6 +64,7 @@ from server.routers import (
     versions,
 )
 from server.routers import auth as auth_router
+from server.routers import xiaoyunque_shortplay as xiaoyunque_shortplay_router
 from server.services.project_events import ProjectEventService
 
 
@@ -564,6 +565,7 @@ app.include_router(grids.router, prefix="/api/v1", tags=["宫格图"])
 app.include_router(reference_videos.router, prefix="/api/v1", tags=["参考生视频"])
 app.include_router(assets.router, prefix="/api/v1", tags=["全局资产库"])
 app.include_router(shots.router, prefix="/api/v1", tags=["分镜"])
+app.include_router(xiaoyunque_shortplay_router.router, prefix="/api/v1", tags=["小云雀短剧"])
 
 
 def create_generation_worker() -> GenerationWorker:

@@ -150,4 +150,12 @@ MESSAGES = {
     "external_video_unsupported_format": "不支持的视频格式 {ext}（允许 {allowed}）",
     "external_video_too_large": "视频过大 {size_mb}MB，上限 {limit_mb}MB",
     "ffmpeg_required": "服务端缺少 ffmpeg，请联系管理员",
+    # Xiaoyunque shortplay
+    "external_script_unsupported_format": "不支持的剧本格式 {ext}（允许 {allowed}）",
+    "external_script_too_long": "剧本过长（{actual} 字符，上限 {limit}）",
+    "provider_not_configured": "未配置 provider：{provider}",
+    "provider_missing_keys": "provider {provider} 缺少必填配置：{keys}",
+    "tos_upload_failed": "TOS 上传失败：{reason}",
+    "run_not_found": "未找到 run：{run_id}",
+    "run_already_terminal": "run 已处于终态 {status}，无法取消",
 }
