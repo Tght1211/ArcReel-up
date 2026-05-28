@@ -391,6 +391,36 @@ async def lifespan(app: FastAPI):
     await worker.start()
     logger.info("GenerationWorker 已启动")
 
+    # Phase A: XiaoyunqueWorker 仅负责进程重启时拉回在途 run，新建 run
+    # 由 router 直接 fire-and-forget 跑 runner（用真实 AK/SK）
+    logger.info("启动 XiaoyunqueWorker...")
+    from lib.xiaoyunque_shortplay.client import XiaoyunqueShortplayClient
+    from lib.xiaoyunque_shortplay.runner import XiaoyunquePipelineRunner
+    from lib.xiaoyunque_shortplay.store import XiaoyunqueRunStore
+    from lib.xiaoyunque_shortplay.worker import XiaoyunqueWorker
+
+    def _xq_store_factory() -> XiaoyunqueRunStore:
+        return XiaoyunqueRunStore(async_session_factory())
+
+    def _xq_runner_factory(store: XiaoyunqueRunStore) -> XiaoyunquePipelineRunner:
+        # 占位 client：worker 重启拉回的 run 用占位 AK/SK 会 401；
+        # 但至少状态会被 set_failed 并不会无限挂着。
+        # 完整恢复 AK/SK 留 Phase B。
+        client = XiaoyunqueShortplayClient(
+            access_key="placeholder-ak",
+            secret_key="placeholder-sk",
+            model_variant="fast720p",
+        )
+        return XiaoyunquePipelineRunner(client, store)
+
+    xq_worker = XiaoyunqueWorker(
+        runner_factory=_xq_runner_factory,
+        store_factory=_xq_store_factory,
+    )
+    app.state.xiaoyunque_worker = xq_worker
+    await xq_worker.start()
+    logger.info("XiaoyunqueWorker 已启动")
+
     logger.info("启动 ProjectEventService...")
     project_event_service = ProjectEventService(PROJECT_ROOT, projects_root=app_data_dir())
     app.state.project_event_service = project_event_service
@@ -410,6 +440,11 @@ async def lifespan(app: FastAPI):
         logger.info("正在停止 GenerationWorker...")
         await worker.stop()
         logger.info("GenerationWorker 已停止")
+    xq_worker = getattr(app.state, "xiaoyunque_worker", None)
+    if xq_worker:
+        logger.info("正在停止 XiaoyunqueWorker...")
+        await xq_worker.stop()
+        logger.info("XiaoyunqueWorker 已停止")
     await shutdown_http_client()
     await close_db()
 
