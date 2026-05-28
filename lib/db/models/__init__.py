@@ -10,6 +10,7 @@ from lib.db.models.custom_provider import CustomProvider, CustomProviderModel
 from lib.db.models.session import AgentSession
 from lib.db.models.task import Task, TaskEvent, WorkerLease
 from lib.db.models.user import User
+from lib.db.models.xiaoyunque_run import XiaoyunqueRun  # noqa: F401
 
 __all__ = [
     "Task",
@@ -26,4 +27,5 @@ __all__ = [
     "CustomProviderModel",
     "Asset",
     "AgentAnthropicCredential",
+    "XiaoyunqueRun",
 ]
