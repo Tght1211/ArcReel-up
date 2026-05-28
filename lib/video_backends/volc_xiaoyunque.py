@@ -1,12 +1,17 @@
-"""火山小云雀-智能生视频 Agent 2.0 后端。"""
+"""火山小云雀-智能生视频 Agent 2.0 后端。
+
+调用走官方 volcengine.visual.VisualService，签名/重试/错误解析由 SDK 处理。
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
-import httpx
+from volcengine.visual.VisualService import VisualService
 
 from lib.providers import PROVIDER_VOLC_XIAOYUNQUE
 from lib.video_backends.base import (
@@ -18,7 +23,6 @@ from lib.video_backends.base import (
     poll_with_retry,
 )
 from lib.volc_tos_uploader import TosImageUploader
-from lib.volc_visual_shared import VISUAL_HOST, sign_request
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +32,6 @@ logger = logging.getLogger(__name__)
 # 控制台开通页：https://console.volcengine.com/ai/ability/detail/5
 REQ_KEY_WITH_REFS = "pippit_iv2v_v20_cvtob_with_vinput"
 REQ_KEY_WITHOUT_REFS = "pippit_iv2v_v20_cvtob"
-
-SUBMIT_ACTION = "CVSync2AsyncSubmitTask"
-QUERY_ACTION = "CVSync2AsyncGetResult"
-API_VERSION = "2022-08-31"
 
 # 业务错误码：可重试 vs 立即失败（不重试的多为内容审核/参数错误）
 # 来自文档"业务错误码"表格；HTTP 200 + code=10000 才算成功
@@ -70,6 +70,10 @@ class VolcXiaoyunqueBackend:
             bucket=tos_bucket,
             region=tos_region,
         )
+        # VisualService 是 singleton（内部有进程级 cache），通过 set_ak/set_sk 覆盖凭据
+        self._visual = VisualService()
+        self._visual.set_ak(access_key)
+        self._visual.set_sk(secret_key)
 
     @property
     def name(self) -> str:
@@ -109,7 +113,7 @@ class VolcXiaoyunqueBackend:
 
     async def _submit(self, request: VideoGenerationRequest, ref_urls: list[str]) -> tuple[str, str]:
         req_key = REQ_KEY_WITH_REFS if ref_urls else REQ_KEY_WITHOUT_REFS
-        body: dict[str, object] = {
+        form: dict[str, Any] = {
             "req_key": req_key,
             "prompt": request.prompt,
             "ratio": request.aspect_ratio,
@@ -118,30 +122,15 @@ class VolcXiaoyunqueBackend:
             "enable_watermark": False,
         }
         if ref_urls:
-            body["img_url_list"] = ref_urls
+            form["img_url_list"] = ref_urls
 
-        payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
-        query = {"Action": SUBMIT_ACTION, "Version": API_VERSION}
-        headers = sign_request(
-            method="POST",
-            host=VISUAL_HOST,
-            path="/",
-            query=query,
-            headers={"Content-Type": "application/json"},
-            body=payload,
-            access_key=self.ak,
-            secret_key=self.sk,
-        )
-        url = f"https://{VISUAL_HOST}/?Action={SUBMIT_ACTION}&Version={API_VERSION}"
-
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(url, content=payload, headers=headers)
-            resp.raise_for_status()
-            data: dict[str, object] = resp.json()
-
+        # SDK 同步调用，丢到线程池
+        data = await asyncio.to_thread(self._visual.cv_sync2async_submit_task, form)
+        if not isinstance(data, dict):
+            raise RuntimeError(f"submit returned non-dict: {data!r}")
         if data.get("code") != 10000:
             raise RuntimeError(f"submit failed: {data}")
-        task_data = data["data"]
+        task_data = data.get("data")
         if not isinstance(task_data, dict):
             raise RuntimeError(f"submit returned unexpected data type: {task_data!r}")
         task_id = str(task_data["task_id"])
@@ -155,23 +144,8 @@ class VolcXiaoyunqueBackend:
         request: VideoGenerationRequest,
     ) -> VideoGenerationResult:
         async def _query() -> dict[str, object]:
-            body = json.dumps({"req_key": req_key, "task_id": task_id}).encode("utf-8")
-            query = {"Action": QUERY_ACTION, "Version": API_VERSION}
-            headers = sign_request(
-                method="POST",
-                host=VISUAL_HOST,
-                path="/",
-                query=query,
-                headers={"Content-Type": "application/json"},
-                body=body,
-                access_key=self.ak,
-                secret_key=self.sk,
-            )
-            url = f"https://{VISUAL_HOST}/?Action={QUERY_ACTION}&Version={API_VERSION}"
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(url, content=body, headers=headers)
-                resp.raise_for_status()
-                return resp.json()
+            form = {"req_key": req_key, "task_id": task_id}
+            return await asyncio.to_thread(self._visual.cv_sync2async_get_result, form)
 
         def _get_status(r: dict[str, object]) -> str:
             d = r.get("data")
