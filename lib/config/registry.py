@@ -504,7 +504,13 @@ PROVIDER_REGISTRY: dict[str, ProviderMeta] = {
             "需先在火山控制台 ai/ability/detail/5 开通有参考 + 无参考两项服务。"
         ),
         required_keys=["access_key", "secret_key", "tos_endpoint", "tos_bucket", "tos_region"],
-        optional_keys=["video_max_workers", "language"],
+        optional_keys=[
+            "video_max_workers",
+            "language",
+            "shortplay_default_model_variant",  # fast720p / pro720p
+            "shortplay_default_visual_style",
+            "shortplay_default_video_ratio",
+        ],
         secret_keys=["access_key", "secret_key"],
         models={
             "xiaoyunque-agent-2.0": ModelInfo(
